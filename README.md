@@ -1,3 +1,5 @@
+This is a fork of the Naomi project that I'm using to change some of the hardcoded settings. I'm just using this to take advantage of online compilation. I don't necessarily recommend this fork for anyone else's use.
+
 # Naomi — a personal voice assistant for Android
 
 A hands-free, offline-first ("Jarvis"-style) voice assistant. Say **"Naomi"** and ask it to set a
