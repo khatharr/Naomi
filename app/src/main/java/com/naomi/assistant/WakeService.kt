@@ -208,18 +208,36 @@ class WakeService : Service() {
                 //    a cleanly spoken "naomi" is reliably ≥ 0.88.
                 val minConf = words.mapNotNull { it.optDouble("conf").takeIf { !it.isNaN() } }
                     .minOrNull() ?: 0.0
-
-                // 2. Duration gate: real "naomi" takes 0.25–0.80 s.
-                //    Sub-0.20 s spikes are noise; >0.90 s suggests garbled speech.
-                val naomiWord = words.firstOrNull { it.optString("word") == "naomi" }
-                val duration = if (naomiWord != null)
-                    naomiWord.optDouble("end") - naomiWord.optDouble("start") else -1.0
+                
+                // 2. Duration gate: measure the "Satchii" portion of the wake phrase.
+                //    Accept the alternate spellings used in WAKE_GRAMMAR.
+                val satchiiWord = words.firstOrNull {
+                    val word = it.optString("word")
+                    word == "satchi" || word == "sachi"
+                }
+                
+                val satIndex = words.indexOfFirst {
+                    it.optString("word") == "sat"
+                }
+                
+                val duration = when {
+                    satchiiWord != null ->
+                        satchiiWord.optDouble("end") - satchiiWord.optDouble("start")
+                
+                    satIndex >= 0 &&
+                        satIndex + 1 < words.size &&
+                        words[satIndex + 1].optString("word") == "chi" ->
+                        words[satIndex + 1].optDouble("end") -
+                            words[satIndex].optDouble("start")
+                
+                    else -> -1.0
+                }
 
                 android.util.Log.i("Naomi",
                     "Wake candidate: \"$text\" conf=${"%.2f".format(minConf)} dur=${"%.2f".format(duration)}s")
 
                 val confOk     = minConf >= MIN_CONFIDENCE
-                val durationOk = duration < 0 || duration in 0.20..0.90   // -1 = not parseable, allow
+                val durationOk = duration < 0 || duration in 0.20..1.10   // -1 = not parseable, allow
                 if (confOk && durationOk) onWakeCandidate(text)
                 else android.util.Log.d("Naomi",
                     "Wake rejected: conf=${"%.2f".format(minConf)} (need≥$MIN_CONFIDENCE) dur=${"%.2f".format(duration)}s")
@@ -390,7 +408,7 @@ class WakeService : Service() {
         }
         val notif = Notification.Builder(this, channelId)
             .setContentTitle("Naomi is listening")
-            .setContentText("Say \"Naomi\" to wake me.")
+            .setContentText("Say \"Satchii\" to wake me.")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .build()
         if (Build.VERSION.SDK_INT >= 29) {
@@ -433,12 +451,20 @@ class WakeService : Service() {
         private val ENROLL_SAMPLES = SAMPLE_RATE * 3 / 2
 
         private const val WAKE_GRAMMAR =
-            "[\"hey naomi\", \"hi naomi\", \"hello naomi\", \"good morning naomi\", " +
-            "\"good night naomi\", \"okay naomi\", \"naomi\", \"[unk]\"]"
-
+            "[\"satchi\", \"sachi\", \"sat chi\", " +
+            "\"ne satchi\", \"neh satchi\", " +
+            "\"hey satchi\", " +
+            "\"yo satchi\", " +
+            "\"[unk]\"]"
+        
         private val WAKE_PHRASES = setOf(
-            "naomi", "hey naomi", "hi naomi", "hello naomi",
-            "good morning naomi", "good night naomi", "okay naomi"
+            "satchi",
+            "sachi",
+            "sat chi",
+            "ne satchi",
+            "neh satchi",
+            "hey satchi",
+            "yo satchi"
         )
 
         // Restricted grammar for follow-up answers — lets the user reply over Naomi's question
